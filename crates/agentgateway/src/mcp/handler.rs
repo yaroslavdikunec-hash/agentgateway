@@ -918,10 +918,21 @@ impl Relay {
 			let mut upstream_instructions: Vec<(String, String)> = Vec::new();
 			let mut supported_versions = ProtocolVersion::KNOWN_VERSIONS.to_vec();
 			let mut upstream_extensions: HashMap<Strng, ExtensionCapabilities> = HashMap::new();
+			// On the modern wire, change notifications are only delivered over
+			// `subscriptions/listen`, which the gateway fans out to the upstreams, so it can
+			// only promise what at least one upstream advertises.
+			let (mut tools_changed, mut prompts_changed, mut resources_changed, mut subscribe) =
+				(false, false, false, false);
 			for (server_name, v) in s {
 				let ServerResult::DiscoverResult(mut r) = v else {
 					return Err(incompatible_upstream_result("server/discover"));
 				};
+				let caps = &r.capabilities;
+				tools_changed |= caps.tools.as_ref().and_then(|t| t.list_changed) == Some(true);
+				prompts_changed |= caps.prompts.as_ref().and_then(|p| p.list_changed) == Some(true);
+				resources_changed |=
+					caps.resources.as_ref().and_then(|r| r.list_changed) == Some(true);
+				subscribe |= caps.resources.as_ref().and_then(|r| r.subscribe) == Some(true);
 				if let Some(ext) = r.capabilities.extensions.take()
 					&& !ext.is_empty()
 				{
@@ -942,6 +953,17 @@ impl Relay {
 				upstreams.server_overrides(),
 			);
 			discover.supported_versions = supported_versions;
+			let caps = &mut discover.capabilities;
+			if let Some(t) = caps.tools.as_mut() {
+				t.list_changed = tools_changed.then_some(true);
+			}
+			if let Some(p) = caps.prompts.as_mut() {
+				p.list_changed = prompts_changed.then_some(true);
+			}
+			if let Some(r) = caps.resources.as_mut() {
+				r.list_changed = resources_changed.then_some(true);
+				r.subscribe = (resource_subscribe && subscribe).then_some(true);
+			}
 			Ok(discover.into())
 		})
 	}

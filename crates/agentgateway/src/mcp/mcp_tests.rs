@@ -7035,6 +7035,70 @@ fn test_merge_discover_unions_extensions_recorded_at_initialize() {
 }
 
 #[test]
+fn test_merge_discover_advertises_change_notifications_only_from_upstreams() {
+	use rmcp::model::{DiscoverResult, Implementation, ProtocolVersion, ServerCapabilities, ServerResult};
+
+	let relay = Relay::new_for_request(
+		McpBackendGroup {
+			targets: vec![
+				fake_streamable_target("quiet", SocketAddr::from(([127, 0, 0, 1], 30114))),
+				fake_streamable_target("notifier", SocketAddr::from(([127, 0, 0, 1], 30115))),
+			],
+			..Default::default()
+		},
+		empty_mcp_policies(),
+		PolicyClient::new(setup_proxy_test("{}").unwrap().pi),
+		&crate::mcp::upstream::IncomingRequestContext::empty(),
+	)
+	.unwrap();
+	let discover = |name: &str, caps: ServerCapabilities| -> (Strng, ServerResult) {
+		(
+			name.into(),
+			ServerResult::DiscoverResult(
+				DiscoverResult::new(ProtocolVersion::KNOWN_VERSIONS.to_vec(), caps)
+					.with_server_info(Implementation::new(name, "1.0")),
+			),
+		)
+	};
+	let quiet = || {
+		ServerCapabilities::builder()
+			.enable_tools()
+			.enable_prompts()
+			.enable_resources()
+			.build()
+	};
+	let merged = |results: Vec<(Strng, ServerResult)>| match relay.merge_discover(true)(
+		results,
+		&empty_cel(),
+	)
+	.unwrap()
+	{
+		ServerResult::DiscoverResult(dr) => dr.capabilities,
+		other => panic!("expected DiscoverResult, got: {:?}", other),
+	};
+
+	// No upstream offers change notifications: the gateway must not promise them,
+	// otherwise clients open `subscriptions/listen` that every upstream rejects.
+	let caps = merged(vec![discover("quiet", quiet()), discover("notifier", quiet())]);
+	assert_eq!(caps.tools.as_ref().unwrap().list_changed, None);
+	assert_eq!(caps.prompts.as_ref().unwrap().list_changed, None);
+	assert_eq!(caps.resources.as_ref().unwrap().list_changed, None);
+	assert_eq!(caps.resources.as_ref().unwrap().subscribe, None);
+
+	// One upstream offers tool list changes: advertised, the rest still not.
+	let notifier = ServerCapabilities::builder()
+		.enable_tools()
+		.enable_tool_list_changed()
+		.enable_prompts()
+		.enable_resources()
+		.build();
+	let caps = merged(vec![discover("quiet", quiet()), discover("notifier", notifier)]);
+	assert_eq!(caps.tools.as_ref().unwrap().list_changed, Some(true));
+	assert_eq!(caps.prompts.as_ref().unwrap().list_changed, None);
+	assert_eq!(caps.resources.as_ref().unwrap().list_changed, None);
+}
+
+#[test]
 fn test_parse_resource_uri_ui_scheme() {
 	let relay = Relay::new_for_request(
 		McpBackendGroup {
