@@ -921,8 +921,10 @@ impl Relay {
 			// On the modern wire, change notifications are only delivered over
 			// `subscriptions/listen`, which the gateway fans out to the upstreams, so it can
 			// only promise what at least one upstream advertises.
-			let (mut tools_changed, mut prompts_changed, mut resources_changed, mut subscribe) =
-				(false, false, false, false);
+			let mut tools_changed = false;
+			let mut prompts_changed = false;
+			let mut resources_changed = false;
+			let mut subscribe = false;
 			for (server_name, v) in s {
 				let ServerResult::DiscoverResult(mut r) = v else {
 					return Err(incompatible_upstream_result("server/discover"));
@@ -930,8 +932,7 @@ impl Relay {
 				let caps = &r.capabilities;
 				tools_changed |= caps.tools.as_ref().and_then(|t| t.list_changed) == Some(true);
 				prompts_changed |= caps.prompts.as_ref().and_then(|p| p.list_changed) == Some(true);
-				resources_changed |=
-					caps.resources.as_ref().and_then(|r| r.list_changed) == Some(true);
+				resources_changed |= caps.resources.as_ref().and_then(|r| r.list_changed) == Some(true);
 				subscribe |= caps.resources.as_ref().and_then(|r| r.subscribe) == Some(true);
 				if let Some(ext) = r.capabilities.extensions.take()
 					&& !ext.is_empty()

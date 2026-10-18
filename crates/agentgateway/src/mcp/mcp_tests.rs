@@ -7036,7 +7036,9 @@ fn test_merge_discover_unions_extensions_recorded_at_initialize() {
 
 #[test]
 fn test_merge_discover_advertises_change_notifications_only_from_upstreams() {
-	use rmcp::model::{DiscoverResult, Implementation, ProtocolVersion, ServerCapabilities, ServerResult};
+	use rmcp::model::{
+		DiscoverResult, Implementation, ProtocolVersion, ServerCapabilities, ServerResult,
+	};
 
 	let relay = Relay::new_for_request(
 		McpBackendGroup {
@@ -7067,14 +7069,12 @@ fn test_merge_discover_advertises_change_notifications_only_from_upstreams() {
 			.enable_resources()
 			.build()
 	};
-	let merged = |results: Vec<(Strng, ServerResult)>| match relay.merge_discover(true)(
-		results,
-		&empty_cel(),
-	)
-	.unwrap()
-	{
-		ServerResult::DiscoverResult(dr) => dr.capabilities,
-		other => panic!("expected DiscoverResult, got: {:?}", other),
+	let merged = |results: Vec<(Strng, ServerResult)>| {
+		let merge = relay.merge_discover(true);
+		match merge(results, &empty_cel()).unwrap() {
+			ServerResult::DiscoverResult(dr) => dr.capabilities,
+			other => panic!("expected DiscoverResult, got: {:?}", other),
+		}
 	};
 
 	// No upstream offers change notifications: the gateway must not promise them,
