@@ -7079,7 +7079,10 @@ fn test_merge_discover_advertises_change_notifications_only_from_upstreams() {
 
 	// No upstream offers change notifications: the gateway must not promise them,
 	// otherwise clients open `subscriptions/listen` that every upstream rejects.
-	let caps = merged(vec![discover("quiet", quiet()), discover("notifier", quiet())]);
+	let caps = merged(vec![
+		discover("quiet", quiet()),
+		discover("notifier", quiet()),
+	]);
 	assert_eq!(caps.tools.as_ref().unwrap().list_changed, None);
 	assert_eq!(caps.prompts.as_ref().unwrap().list_changed, None);
 	assert_eq!(caps.resources.as_ref().unwrap().list_changed, None);
@@ -7092,7 +7095,10 @@ fn test_merge_discover_advertises_change_notifications_only_from_upstreams() {
 		.enable_prompts()
 		.enable_resources()
 		.build();
-	let caps = merged(vec![discover("quiet", quiet()), discover("notifier", notifier)]);
+	let caps = merged(vec![
+		discover("quiet", quiet()),
+		discover("notifier", notifier),
+	]);
 	assert_eq!(caps.tools.as_ref().unwrap().list_changed, Some(true));
 	assert_eq!(caps.prompts.as_ref().unwrap().list_changed, None);
 	assert_eq!(caps.resources.as_ref().unwrap().list_changed, None);
